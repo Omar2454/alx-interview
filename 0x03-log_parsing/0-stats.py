@@ -1,50 +1,54 @@
 #!/usr/bin/python3
-"""
-This script reads standard input for log entries, computes and prints metrics.
-It handles logs formatted as: <IP Address> - [<date>] "GET /projects/260 HTTP/1.1" <status code> <file size>
-It computes the total file size and counts of occurrences of each HTTP status code after every 10 lines or upon keyboard interruption.
-"""
 
 import sys
-import re
-import signal
 
-def print_statistics(total_file_size, status_counts):
+
+def print_msg(dict_sc, total_file_size):
+    """
+    Method to print
+    Args:
+        dict_sc: dict of status codes
+        total_file_size: total of the file
+    Returns:
+        Nothing
+    """
+
     print("File size: {}".format(total_file_size))
-    for status in sorted(status_counts.keys()):
-        if status_counts[status] > 0:
-            print("{}: {}".format(status, status_counts[status]))
+    for key, val in sorted(dict_sc.items()):
+        if val != 0:
+            print("{}: {}".format(key, val))
 
-def signal_handler(signal, frame):
-    print_statistics(total_file_size, status_codes)
-    sys.exit(0)
 
-signal.signal(signal.SIGINT, signal_handler)
-
-# Initialize counters
 total_file_size = 0
-status_codes = {200: 0, 301: 0, 400: 0, 401: 0, 403: 0, 404: 0, 405: 0, 500: 0}
-line_count = 0
+code = 0
+counter = 0
+dict_sc = {"200": 0,
+           "301": 0,
+           "400": 0,
+           "401": 0,
+           "403": 0,
+           "404": 0,
+           "405": 0,
+           "500": 0}
 
-# Regex to match the log format
-log_pattern = re.compile(r'^\d+\.\d+\.\d+\.\d+ - \[\S+?\] "GET /projects/260 HTTP/1\.1" (\d{3}) (\d+)$')
+try:
+    for line in sys.stdin:
+        parsed_line = line.split()  # ✄ trimming
+        parsed_line = parsed_line[::-1]  # inverting
 
-# Process each line from standard input
-for line in sys.stdin:
-    match = log_pattern.search(line)
-    if match:
-        status_code = int(match.group(1))
-        file_size = int(match.group(2))
+        if len(parsed_line) > 2:
+            counter += 1
 
-        if status_code in status_codes:
-            status_codes[status_code] += 1
-            total_file_size += file_size
-            line_count += 1
+            if counter <= 10:
+                total_file_size += int(parsed_line[0])  # file size
+                code = parsed_line[1]  # status code
 
-            if line_count == 10:
-                print_statistics(total_file_size, status_codes)
-                line_count = 0
+                if (code in dict_sc.keys()):
+                    dict_sc[code] += 1
 
-# If the process is ended without an interruption and there are fewer than 10 lines
-if line_count > 0:
-    print_statistics(total_file_size, status_codes)
+            if (counter == 10):
+                print_msg(dict_sc, total_file_size)
+                counter = 0
+
+finally:
+    print_msg(dict_sc, total_file_size)
