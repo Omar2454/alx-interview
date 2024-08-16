@@ -1,57 +1,50 @@
 #!/usr/bin/python3
 """
-Read stdin line by line and computes metrics
-Input format: <IP Address> - [<date>] "GET /projects/260 HTTP/1.1"
-<status code> <file size>, skip line if not this format
-After every 10minutes or keyboard interrupt (CTRL + C)
-print these from beginning: number of lines by status code
-possible status codes: 200, 301, 400, 401, 404, 405, and 500
-if status code isn't an integer, do not print it
-format: <status code>: <number>
-Status code must be printed in ascending order
+Reads standard input line by line to process log data formatted as:
+<IP Address> - [<date>] "GET /projects/260 HTTP/1.1" <status code> <file size>
+It skips lines that don't match the format and tallies results every 10 lines or on keyboard interruption.
 """
+
 import sys
 
-
-def print_msg(codes, file_size):
+def print_statistics(file_size, status_counts):
     print("File size: {}".format(file_size))
-    for key, val in sorted(codes.items()):
-        if val != 0:
-            print("{}: {}".format(key, val))
+    for status in sorted(status_counts.keys()):
+        if status_counts[status] > 0:
+            print("{}: {}".format(status, status_counts[status]))
 
+def main():
+    import signal
+    import re
 
-file_size = 0
-code = 0
-count_lines = 0
-codes = {
-    "200": 0,
-    "301": 0,
-    "400": 0,
-    "401": 0,
-    "403": 0,
-    "404": 0,
-    "405": 0,
-    "500": 0
-}
+    # Handling keyboard interrupt to ensure statistics are printed before the program exits
+    def signal_handler(sig, frame):
+        print_statistics(total_file_size, status_codes)
+        sys.exit(0)
+    signal.signal(signal.SIGINT, signal_handler)
 
-try:
+    total_file_size = 0
+    status_codes = {200: 0, 301: 0, 400: 0, 401: 0, 403: 0, 404: 0, 405: 0, 500: 0}
+    line_count = 0
+
+    log_pattern = re.compile(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}) - \[\S+?\] "GET /projects/260 HTTP/1\.1" (\d{3}) (\d+)')
+    
     for line in sys.stdin:
-        parsed_line = line.split()
-        parsed_line = parsed_line[::-1]
+        match = log_pattern.match(line)
+        if match:
+            line_count += 1
+            total_file_size += int(match.group(3))
+            status_code = int(match.group(2))
+            if status_code in status_codes:
+                status_codes[status_code] += 1
+            
+            if line_count == 10:
+                print_statistics(total_file_size, status_codes)
+                line_count = 0  # reset line count after printing
 
-        if len(parsed_line) > 2:
-            count_lines += 1
+    # In case total line count isn't a multiple of 10
+    if line_count != 0:
+        print_statistics(total_file_size, status_codes)
 
-            if count_lines <= 10:
-                file_size += int(parsed_line[0])
-                code = parsed_line[1]
-
-                if (code in codes.keys()):
-                    codes[code] += 1
-
-            if (count_lines == 10):
-                print_msg(codes, file_size)
-                count_lines = 0
-
-finally:
-    print_msg(codes, file_size)
+if __name__ == "__main__":
+    main()
